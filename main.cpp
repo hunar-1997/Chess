@@ -4,7 +4,7 @@
 
 #define WIDTH 600
 #define HEIGHT 600
-#define SIZE WIDTH/8
+const int SIZE = WIDTH/8;
 
 // These are Kurdish names
 
@@ -15,6 +15,10 @@ enum Type_of_pice {
 enum Color_of_pice {
 	spi, rash
 }; // In English {white, black}
+
+enum Cell_states {
+	normal, this_piece, available, under_attack
+};
 
 class vec2 {
 public:
@@ -33,6 +37,7 @@ class piece {
 public:
 	int type;
 	int color;
+	int state = normal;
 
 	piece() {
 	};
@@ -50,6 +55,39 @@ sf::Texture *get_texture(int type, int color) {
 	return &pieces[type + color * 6];
 }
 
+int get_type_at(vec2 pos, int x_off, int y_off){
+	if (pos.x-x_off<0 || pos.x+x_off>7 || pos.y-y_off<0 || pos.y+y_off>7){
+		return -1;
+	}
+	return board[pos.y-y_off][pos.x+x_off].type;
+}
+
+std::vector<vec2> available_moves(vec2 pos){	// I left the code here .. its very unstable
+	std::vector<vec2> to_return;
+	switch (board[pos.y][pos.x].type){
+		case sarbaz:
+			if (get_type_at(pos, 0, -1) != -1) to_return.push_back(vec2(pos.x+0, pos.y-1));
+			if (get_type_at(pos, 0, -2) != -1) to_return.push_back(vec2(pos.x+0, pos.y-2));
+			break;
+	}
+	return to_return;
+}
+
+vec2 current_press = vec2(0,0);
+void move(vec2 pos){
+	board[current_press.y][current_press.x].state = normal;
+	current_press = pos;
+	
+	piece &cp = board[pos.y][pos.x];
+	if (cp.type != batal){
+		cp.state = this_piece;
+		std::vector<vec2> av = available_moves(pos);
+		for (int i=0; i<av.size(); i++){
+			board[av[i].y][av[i].x].state = available;
+		}
+	}
+}
+
 int main(int argc, char** argv) {
 	// Display stuff
 	sf::RenderWindow screen(sf::VideoMode(WIDTH, HEIGHT), "Chess - made by hunar - hbkurd.weebly.com");
@@ -65,6 +103,24 @@ int main(int argc, char** argv) {
 			pieces[6 * y + x].loadFromImage(pieces_image, sf::IntRect(x * SIZE, y * SIZE, SIZE, SIZE));
 	// ----------------------------
 
+	// Some handmade textures
+	sf::Image av_img;
+	av_img.create(SIZE, SIZE);
+	for (int i = 0; i < SIZE; i++)
+		for (int j = 0; j < SIZE; j++)
+			av_img.setPixel(i, j, sf::Color(0, 243, 255, 150));
+	sf::Image at_img;
+	at_img.create(SIZE, SIZE);
+	for (int i = 0; i < SIZE; i++)
+		for (int j = 0; j < SIZE; j++)
+			at_img.setPixel(i, j, sf::Color(255, 0, 0, 150));
+	sf::Image th_img;
+	th_img.create(SIZE, SIZE);
+	for (int i = 0; i < SIZE; i++)
+		for (int j = 0; j < SIZE; j++)
+			th_img.setPixel(i, j, sf::Color(0, 255, 0, 150));
+	// ----------------------------
+
 	// Creating the starting board
 	for (int i = 0; i < 8; i++) {
 		for (int j = 0; j < 8; j++) {
@@ -74,13 +130,10 @@ int main(int argc, char** argv) {
 
 			if (i == 1) board[i][j] = piece(sarbaz, color);
 			else if (i == 6) board[i][j] = piece(sarbaz, color);
-			else if ( i==7 || i==0 ){
+			else if (i == 7 || i == 0) {
 				int tp[] = {qala, asp, fil, wazir, pasha, fil, asp, qala};
 				board[i][j] = piece(tp[j], color);
-			}
-			
-
-			else board[i][j] = piece(batal, rash);
+			} else board[i][j] = piece(batal, rash);
 		}
 	}
 	// ----------------------------
@@ -105,6 +158,8 @@ int main(int argc, char** argv) {
 			}
 			if (events.type == sf::Event::MouseButtonReleased) {
 				if (events.mouseButton.button == sf::Mouse::Left) {
+					move( vec2(events.mouseButton.x/SIZE, events.mouseButton.y/SIZE) );
+					
 					should_redraw = true;
 				}
 			}
@@ -118,6 +173,15 @@ int main(int argc, char** argv) {
 			for (int i = 0; i < 8; i++) {
 				for (int j = 0; j < 8; j++) {
 					piece _this = board[i][j];
+					if (_this.state != normal) {
+						sf::Texture tx;
+						if (_this.state==available) tx.loadFromImage(av_img);
+						if (_this.state==under_attack) tx.loadFromImage(at_img);
+						if (_this.state==this_piece) tx.loadFromImage(th_img);
+						s.setTexture(tx);
+						s.setPosition(j*SIZE, i * SIZE);
+						screen.draw(s);
+					}
 					if (_this.type != batal) {
 						s.setTexture(*get_texture(_this.type, _this.color));
 						s.setPosition(j*SIZE, i * SIZE);
