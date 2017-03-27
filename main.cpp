@@ -2,24 +2,29 @@
 #include <iostream>
 #include <vector>
 
-#define WIDTH 600
-#define HEIGHT 600
-const int SIZE = WIDTH/8;
-
-// These are Kurdish names
-
+// Enums
 enum Type_of_pice {
 	pasha, wazir, fil, asp, qala, sarbaz, batal
 }; // In English {king, queen, bishop, knight, rook, pawn, empty}
 
-enum Color_of_pice {
-	spi, rash
-}; // In English {white, black}
+enum Color_of_pice {spi, rash}; // In English {white, black}
 
-enum Cell_states {
-	normal, this_piece, available, under_attack
-};
+enum Cell_states {normal, this_piece, available, under_attack};
 
+enum Game_states {stopped, paused, started, selected, won};
+// ----------------------------
+
+// Global variables
+const int WIDTH = 600;
+const int HEIGHT = 600;
+const int SIZE = WIDTH/8;
+
+sf::Texture pieces[12];
+int game_state = stopped;
+int turn = spi;
+// ----------------------------
+
+// Classes
 class vec2 {
 public:
 	int x, y;
@@ -39,18 +44,20 @@ public:
 	int color;
 	int state = normal;
 
-	piece() {
-	};
+	piece() {};
 
 	piece(int type, int color) {
 		this->type = type;
 		this->color = color;
 	}
 };
+// ----------------------------
 
-sf::Texture pieces[12];
+// Global Methods
 piece board[8][8];
+// ----------------------------
 
+// functions
 sf::Texture *get_texture(int type, int color) {
 	return &pieces[type + color * 6];
 }
@@ -82,11 +89,15 @@ void move(vec2 pos){
 	if (cp.type != batal){
 		cp.state = this_piece;
 		std::vector<vec2> av = available_moves(pos);
-		for (int i=0; i<av.size(); i++){
+		for (int i=0; i<av.size(); i++)
 			board[av[i].y][av[i].x].state = available;
-		}
 	}
 }
+
+void toggle_turn(){
+	turn = (turn==spi)?rash:spi;
+}
+// ----------------------------
 
 int main(int argc, char** argv) {
 	// Display stuff
@@ -104,17 +115,17 @@ int main(int argc, char** argv) {
 	// ----------------------------
 
 	// Some handmade textures
-	sf::Image av_img;
+	sf::Image av_img;	// available cell texture
 	av_img.create(SIZE, SIZE);
 	for (int i = 0; i < SIZE; i++)
 		for (int j = 0; j < SIZE; j++)
 			av_img.setPixel(i, j, sf::Color(0, 243, 255, 150));
-	sf::Image at_img;
+	sf::Image at_img;	// under attack cell texture
 	at_img.create(SIZE, SIZE);
 	for (int i = 0; i < SIZE; i++)
 		for (int j = 0; j < SIZE; j++)
 			at_img.setPixel(i, j, sf::Color(255, 0, 0, 150));
-	sf::Image th_img;
+	sf::Image th_img;	// selected cell texture
 	th_img.create(SIZE, SIZE);
 	for (int i = 0; i < SIZE; i++)
 		for (int j = 0; j < SIZE; j++)
@@ -122,7 +133,7 @@ int main(int argc, char** argv) {
 	// ----------------------------
 
 	// Creating the starting board
-	for (int i = 0; i < 8; i++) {
+	for (int i = 0; i < 8; i++)
 		for (int j = 0; j < 8; j++) {
 			int color;
 			if (i > 3) color = spi;
@@ -135,7 +146,6 @@ int main(int argc, char** argv) {
 				board[i][j] = piece(tp[j], color);
 			} else board[i][j] = piece(batal, rash);
 		}
-	}
 	// ----------------------------
 
 
@@ -150,10 +160,10 @@ int main(int argc, char** argv) {
 
 	bool should_redraw = true;
 	while (screen.isOpen()) {
-
+		// taking care about the mouse clicks
 		sf::Event events;
 		while (screen.pollEvent(events)) {
-			if (events.type == sf::Event::Closed) {
+			if (events.type == sf::Event::Closed){
 				screen.close();
 			}
 			if (events.type == sf::Event::MouseButtonReleased) {
@@ -164,7 +174,9 @@ int main(int argc, char** argv) {
 				}
 			}
 		}
-
+		// ----------------------------
+		
+		// Do thins when we need to update the display
 		if (should_redraw) {
 			screen.draw(background);
 
@@ -190,11 +202,11 @@ int main(int argc, char** argv) {
 				}
 			}
 			// ---------------------------
-
+			
 			should_redraw = false;
+			screen.display();
 		}
-
-		screen.display();
+		// ----------------------------
 	}
 
 	return 0;
