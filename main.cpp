@@ -62,40 +62,45 @@ sf::Texture *get_texture(int type, int color) {
 	return &pieces[type + color * 6];
 }
 
-int get_type_at(vec2 pos, int x_off, int y_off){
-	if (pos.x-x_off<0 || pos.x+x_off>7 || pos.y-y_off<0 || pos.y+y_off>7){
-		return -1;
-	}
-	return board[pos.y-y_off][pos.x+x_off].type;
+int rtg(int x, int y){	// relative to global position
+	return x - 8*y;
 }
 
-std::vector<vec2> available_moves(vec2 pos){	// I left the code here .. its very unstable
-	std::vector<vec2> to_return;
-	switch (board[pos.y][pos.x].type){
+piece *get_board(int x, int y){
+	if (turn==rash) x = 7-x;
+	return &board[x][y];
+}
+
+void toggle_turn(){
+	turn = (turn==spi)?rash:spi;
+}
+
+std::vector<int> available_moves(vec2 pos){
+	std::vector<int> to_return;
+	
+	int index = pos.y*8 + pos.x;
+	
+	int type = get_board(pos.y, pos.x)->type;
+	switch (type){
 		case sarbaz:
-			if (get_type_at(pos, 0, -1) != -1) to_return.push_back(vec2(pos.x+0, pos.y-1));
-			if (get_type_at(pos, 0, -2) != -1) to_return.push_back(vec2(pos.x+0, pos.y-2));
+			int allowed[] = {rtg(0,1), rtg(0,2)};
+			for (int i=0; i<2; i++)
+				to_return.push_back(index + allowed[i]);
 			break;
 	}
 	return to_return;
 }
 
-vec2 current_press = vec2(0,0);
 void move(vec2 pos){
-	board[current_press.y][current_press.x].state = normal;
-	current_press = pos;
-	
-	piece &cp = board[pos.y][pos.x];
-	if (cp.type != batal){
-		cp.state = this_piece;
-		std::vector<vec2> av = available_moves(pos);
-		for (int i=0; i<av.size(); i++)
-			board[av[i].y][av[i].x].state = available;
+	piece *this_cell = get_board(pos.y, pos.x);
+	if (this_cell->color == turn){
+		if (this_cell->type != batal){
+			this_cell->state = this_piece;
+			std::vector<int> av = available_moves(pos);
+			for (int i=0; i<av.size(); i++)
+				get_board(av[i]/8, av[i]%8)->state = available;
+		}
 	}
-}
-
-void toggle_turn(){
-	turn = (turn==spi)?rash:spi;
 }
 // ----------------------------
 
@@ -178,13 +183,15 @@ int main(int argc, char** argv) {
 		
 		// Do thins when we need to update the display
 		if (should_redraw) {
+			screen.clear();
 			screen.draw(background);
 
 			// Drawing the board
 			sf::Sprite s;
+			
 			for (int i = 0; i < 8; i++) {
 				for (int j = 0; j < 8; j++) {
-					piece _this = board[i][j];
+					piece _this = *get_board(i, j);
 					if (_this.state != normal) {
 						sf::Texture tx;
 						if (_this.state==available) tx.loadFromImage(av_img);
@@ -192,6 +199,7 @@ int main(int argc, char** argv) {
 						if (_this.state==this_piece) tx.loadFromImage(th_img);
 						s.setTexture(tx);
 						s.setPosition(j*SIZE, i * SIZE);
+						get_board(i, j)->state = normal;
 						screen.draw(s);
 					}
 					if (_this.type != batal) {
