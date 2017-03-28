@@ -75,18 +75,95 @@ void toggle_turn(){
 	turn = (turn==spi)?rash:spi;
 }
 
+int valid(int index, vec2 offset, vec2 pos){	// 0:dont do	1:doit	2:do it but break afterwards
+	if (pos.x + offset.x > 7 || pos.x + offset.x < 0 || pos.y+offset.y > 7 || pos.y + offset.y < 0) return 0;
+	int type = get_board(index/8, index%8)->type;
+	if (type==batal)
+		return 1;
+	if (type!=batal) {
+		if (get_board(index / 8, index % 8)->color != turn)
+			return 2;
+	}
+}
+
 std::vector<int> available_moves(vec2 pos){
 	std::vector<int> to_return;
 	
 	int index = pos.y*8 + pos.x;
 	
 	int type = get_board(pos.y, pos.x)->type;
-	switch (type){
-		case sarbaz:
-			int allowed[] = {rtg(0,1), rtg(0,2)};
-			for (int i=0; i<2; i++)
-				to_return.push_back(index + allowed[i]);
-			break;
+	
+	if (type == sarbaz){
+		for (int i=1; i<=2; i++){
+			vec2 offset(0, i);
+			int current = rtg(offset.x, offset.y);
+			
+			int ind = index + current;
+			
+			int v = valid(ind, offset, pos);
+			if (v==1 || v==2){
+				to_return.push_back(index + current);
+				if (v==2) break;
+			}
+		}
+	}
+	if (type == qala || type == wazir || type==pasha){
+		for (int bar = -1; bar<=0; bar++){
+			for (int arasta=-1; arasta<=1; arasta+=2){
+				for (int i=arasta;; i+=arasta){
+					vec2 offset((bar+1)*i, -bar*i);
+					int current = rtg(offset.x, offset.y);
+					
+					int ind = index + current;
+
+					int v = valid(ind, offset, pos);
+					if (v == 1 || v == 2) {
+						to_return.push_back(index + current);
+						if (v == 2) break;
+					}else break;
+					
+					if (type==pasha) break;
+				}
+			}
+		}
+	}
+	if (type == fil || type == wazir || type==pasha){
+		for (int bar = -1; bar<=1; bar+=2){
+			for (int arasta=-1; arasta<=1; arasta+=2){
+				for (int i=arasta;; i+=arasta){
+					vec2 offset(i, bar*i);
+					int current = rtg(offset.x, offset.y);
+					
+					int ind = index + current;
+
+					int v = valid(ind, offset, pos);
+					if (v == 1 || v == 2) {
+						to_return.push_back(index + current);
+						if (v == 2) break;
+					}else break;
+					
+					if (type==pasha) break;
+				}
+			}
+		}
+	}
+	if (type == asp) {
+		for (int aso = -1; aso <= 1; aso+=2){
+			for (int stun = -1; stun <= 1; stun += 2) {
+				for (int i = 1; i <= 2; i++) {
+					vec2 offset(aso*(3-i), stun*i);
+					int current = rtg(offset.x, offset.y);
+
+					int ind = index + current;
+
+					int v = valid(ind, offset, pos);
+					if (v == 1 || v == 2) {
+						to_return.push_back(index + current);
+						if (v == 2) break;
+					} else break;
+				}
+			}
+		}
 	}
 	return to_return;
 }
@@ -97,8 +174,12 @@ void move(vec2 pos){
 		if (this_cell->type != batal){
 			this_cell->state = this_piece;
 			std::vector<int> av = available_moves(pos);
-			for (int i=0; i<av.size(); i++)
-				get_board(av[i]/8, av[i]%8)->state = available;
+			for (int i=0; i<av.size(); i++){
+				int st = available;
+				if (get_board(av[i]/8, av[i]%8)->type!=batal)
+					st = under_attack;
+				get_board(av[i]/8, av[i]%8)->state = st;
+			}
 		}
 	}
 }
@@ -152,8 +233,10 @@ int main(int argc, char** argv) {
 			} else board[i][j] = piece(batal, rash);
 		}
 	// ----------------------------
-
-
+	board[3][4].type = asp;
+	board[3][4].color = spi;
+	board[6][6].type = asp;
+	board[6][6].color = spi;
 	// background
 	sf::Texture back_tx;
 	back_tx.loadFromFile("board.png");
