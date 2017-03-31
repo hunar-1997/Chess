@@ -1,6 +1,7 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <vector>
+#include <cmath>
 
 // Enums
 enum Type_of_pice {
@@ -11,8 +12,6 @@ enum Color_of_pice {spi, rash}; // In English {white, black}
 
 enum Cell_states {normal, this_piece, available, under_attack};
 
-enum Game_states {stopped, idle, selected};
-
 enum cell_type {cell_wrong, cell_empty, cell_our, cell_enemy};
 // ----------------------------
 
@@ -22,7 +21,6 @@ const int HEIGHT = 600;
 const int SIZE = WIDTH/8;
 
 sf::Texture pieces[12];
-int game_state = stopped;
 int turn = spi;
 // ----------------------------
 
@@ -114,6 +112,7 @@ std::vector<int> available_moves(vec2 pos){
 				if ( (side==0&&v==cell_empty) || (side==1&&v==cell_enemy) ) {
 					to_return.push_back(index + current);
 				}
+				if ( side==0 && ((v==cell_our || v==cell_enemy) || pos.y!=6) ) break;
 			}
 		}
 	}
@@ -177,28 +176,61 @@ std::vector<int> available_moves(vec2 pos){
 	return to_return;
 }
 
+void swap(vec2 pos){
+	for (int j=0; j<8; j++)
+		for (int i=0; i<8; i++)
+			if( get_board(j, i)->state==this_piece ){
+				get_board(pos.y, pos.x)->type = get_board(j, i)->type;
+				get_board(pos.y, pos.x)->color = turn;
+				get_board(j, i)->type = batal;
+				break;
+			}
+	toggle_turn();
+}
+
+void reset_states(){
+	for (int j=0; j<8; j++)
+		for (int i=0; i<8; i++)
+			get_board(j, i)->state = normal;
+}
+
 void move(vec2 pos){
 	piece *this_cell = get_board(pos.y, pos.x);
-	if (this_cell->type != batal){
-		if (this_cell->color == turn){
-			this_cell->state = this_piece;
-			std::vector<int> av = available_moves(pos);
-			for (int i=0; i<av.size(); i++){
-				int st = available;
-				if (get_board(av[i]/8, av[i]%8)->type!=batal)
-					st = under_attack;
-				get_board(av[i]/8, av[i]%8)->state = st;
+	if (this_cell->type != batal && this_cell->color == turn){
+		
+		if (this_cell->state != this_piece) {
+			reset_states();
+			if (this_cell->color == turn) {
+				this_cell->state = this_piece;
+				std::vector<int> av = available_moves(pos);
+				for (int i = 0; i < av.size(); i++) {
+					int st = available;
+					if (get_board(av[i] / 8, av[i] % 8)->type != batal)
+						st = under_attack;
+					get_board(av[i] / 8, av[i] % 8)->state = st;
+				}
 			}
+		}else{
+			reset_states();
 		}
 	}else if (this_cell->state==available || this_cell->state == under_attack){
-		board[pos.y][pos.x].type == sarbaz;
-		
+		swap(pos);
+		reset_states();
+	}else if (this_cell->type == batal){
+		reset_states();
 	}
+}
+
+int linear(int x, int y){
+	int m = SIZE/2;
+	using namespace std;
+	int di = sqrt( pow(m-x, 2) + pow(m-y, 2) );
+	return di*3;
 }
 // ----------------------------
 
 int main(int argc, char** argv) {
-	game_state = idle;
+	
 	// Display stuff
 	sf::RenderWindow screen(sf::VideoMode(WIDTH, HEIGHT), "Chess - made by hunar - hbkurd.weebly.com");
 	screen.setFramerateLimit(10);
@@ -218,17 +250,17 @@ int main(int argc, char** argv) {
 	av_img.create(SIZE, SIZE);
 	for (int i = 0; i < SIZE; i++)
 		for (int j = 0; j < SIZE; j++)
-			av_img.setPixel(i, j, sf::Color(0, 243, 255, 150));
+			av_img.setPixel(i, j, sf::Color(0, 243, 255, linear(i, j) ));
 	sf::Image at_img;	// under attack cell texture
 	at_img.create(SIZE, SIZE);
 	for (int i = 0; i < SIZE; i++)
 		for (int j = 0; j < SIZE; j++)
-			at_img.setPixel(i, j, sf::Color(255, 0, 0, 150));
+			at_img.setPixel(i, j, sf::Color(255, 0, 0, linear(i, j) ));
 	sf::Image th_img;	// selected cell texture
 	th_img.create(SIZE, SIZE);
 	for (int i = 0; i < SIZE; i++)
 		for (int j = 0; j < SIZE; j++)
-			th_img.setPixel(i, j, sf::Color(0, 255, 0, 150));
+			th_img.setPixel(i, j, sf::Color(0, 255, 0, linear(i, j) ));
 	// ----------------------------
 
 	// Creating the starting board
@@ -280,18 +312,18 @@ int main(int argc, char** argv) {
 			// Drawing the board
 			sf::Sprite s;
 			
+			
 			for (int i = 0; i < 8; i++) {
 				for (int j = 0; j < 8; j++) {
 					piece _this = *get_board(i, j);
 					if (_this.state != normal) {
-						std::cout << "resetting everything to normal\n";
 						sf::Texture tx;
 						if (_this.state==available) tx.loadFromImage(av_img);
 						if (_this.state==under_attack) tx.loadFromImage(at_img);
 						if (_this.state==this_piece) tx.loadFromImage(th_img);
 						s.setTexture(tx);
 						s.setPosition(j*SIZE, i * SIZE);
-						get_board(i, j)->state = normal;
+						//get_board(i, j)->state = normal;
 						screen.draw(s);
 					}
 					if (_this.type != batal) {
