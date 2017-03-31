@@ -11,7 +11,9 @@ enum Color_of_pice {spi, rash}; // In English {white, black}
 
 enum Cell_states {normal, this_piece, available, under_attack};
 
-enum Game_states {stopped, paused, started, selected, won};
+enum Game_states {stopped, idle, selected};
+
+enum cell_type {cell_wrong, cell_empty, cell_our, cell_enemy};
 // ----------------------------
 
 // Global variables
@@ -62,47 +64,144 @@ sf::Texture *get_texture(int type, int color) {
 	return &pieces[type + color * 6];
 }
 
-int get_type_at(vec2 pos, int x_off, int y_off){
-	if (pos.x-x_off<0 || pos.x+x_off>7 || pos.y-y_off<0 || pos.y+y_off>7){
-		return -1;
-	}
-	return board[pos.y-y_off][pos.x+x_off].type;
+int rtg(int x, int y){	// relative to global position
+	return x - 8*y;
 }
 
-std::vector<vec2> available_moves(vec2 pos){	// I left the code here .. its very unstable
-	std::vector<vec2> to_return;
-	switch (board[pos.y][pos.x].type){
-		case sarbaz:
-			if (get_type_at(pos, 0, -1) != -1) to_return.push_back(vec2(pos.x+0, pos.y-1));
-			if (get_type_at(pos, 0, -2) != -1) to_return.push_back(vec2(pos.x+0, pos.y-2));
-			break;
-	}
-	return to_return;
-}
-
-vec2 current_press = vec2(0,0);
-void move(vec2 pos){
-	board[current_press.y][current_press.x].state = normal;
-	current_press = pos;
-
-	piece &cp = board[pos.y][pos.x];
-	if (cp.type != batal){
-		cp.state = this_piece;
-		std::vector<vec2> av = available_moves(pos);
-		for (int i=0; i<av.size(); i++)
-			board[av[i].y][av[i].x].state = available;
-	}
+piece *get_board(int x, int y){
+	if (turn==rash) x = 7-x;
+	return &board[x][y];
 }
 
 void toggle_turn(){
 	turn = (turn==spi)?rash:spi;
 }
+
+int valid(int index, vec2 offset, vec2 pos){
+	//std::cout << offset.x << " " << offset.y << std::endl;
+	if (pos.x + offset.x < 0 || pos.x + offset.x > 7 || pos.y - offset.y < 0 || pos.y - offset.y > 7) return cell_wrong;
+	int type = get_board(index/8, index%8)->type;
+	if (type==batal)
+		return cell_empty;
+	if (type!=batal) {
+		if (get_board(index / 8, index % 8)->color != turn)
+			return cell_enemy;
+		return cell_our;
+	}
+}
+
+std::vector<int> available_moves(vec2 pos){
+	std::vector<int> to_return;
+
+	int index = pos.y*8 + pos.x;
+
+	int type = get_board(pos.y, pos.x)->type;
+
+	if (type == sarbaz){
+		for (int side = 0; side <= 1; side++) {
+			for (int i = 1; i <= 2; i++) {
+				vec2 offset(0, i);
+				if (side==1){
+					offset.x = i*2-3;
+					offset.y = 1;
+				}
+
+				int current = rtg(offset.x, offset.y);
+
+				int ind = index + current;
+
+				int v = valid(ind, offset, pos);
+				if ( (side==0&&v==cell_empty) || (side==1&&v==cell_enemy) ) {
+					to_return.push_back(index + current);
+				}
+			}
+		}
+	}
+	if (type == qala || type == wazir || type==pasha){
+		for (int bar = -1; bar<=0; bar++){
+			for (int arasta=-1; arasta<=1; arasta+=2){
+				for (int i=arasta;; i+=arasta){
+					vec2 offset((bar+1)*i, -bar*i);
+					int current = rtg(offset.x, offset.y);
+
+					int ind = index + current;
+
+					int v = valid(ind, offset, pos);
+					if (v == cell_empty || v == cell_enemy) {
+						to_return.push_back(index + current);
+						if (v == cell_enemy) break;
+					}else break;
+
+					if (type==pasha) break;
+				}
+			}
+		}
+	}
+	if (type == fil || type == wazir || type==pasha){
+		for (int bar = -1; bar<=1; bar+=2){
+			for (int arasta=-1; arasta<=1; arasta+=2){
+				for (int i=arasta;; i+=arasta){
+					vec2 offset(i, bar*i);
+					int current = rtg(offset.x, offset.y);
+
+					int ind = index + current;
+
+					int v = valid(ind, offset, pos);
+					if (v == cell_empty || v == cell_enemy) {
+						to_return.push_back(index + current);
+						if (v == cell_enemy) break;
+					}else break;
+
+					if (type==pasha) break;
+				}
+			}
+		}
+	}
+	if (type == asp) {
+		for (int aso = -1; aso <= 1; aso+=2){
+			for (int stun = -1; stun <= 1; stun += 2) {
+				for (int i = 1; i <= 2; i++) {
+					vec2 offset(aso*(3-i), stun*i);
+					int current = rtg(offset.x, offset.y);
+					int ind = index + current;
+
+					int v = valid(ind, offset, pos);
+					if (v == cell_empty || v == cell_enemy) {
+						to_return.push_back(index + current);
+						if (v == cell_enemy) continue;
+					}else continue;
+				}
+			}
+		}
+	}
+	return to_return;
+}
+
+void move(vec2 pos){
+	piece *this_cell = get_board(pos.y, pos.x);
+	if (this_cell->type != batal){
+		if (this_cell->color == turn){
+			this_cell->state = this_piece;
+			std::vector<int> av = available_moves(pos);
+			for (int i=0; i<av.size(); i++){
+				int st = available;
+				if (get_board(av[i]/8, av[i]%8)->type!=batal)
+					st = under_attack;
+				get_board(av[i]/8, av[i]%8)->state = st;
+			}
+		}
+	}else if (this_cell->state==available || this_cell->state == under_attack){
+		board[pos.y][pos.x].type == sarbaz;
+
+	}
+}
 // ----------------------------
 
 int main(int argc, char** argv) {
+	game_state = idle;
 	// Display stuff
 	sf::RenderWindow screen(sf::VideoMode(WIDTH, HEIGHT), "Chess - made by hunar - hbkurd.weebly.com");
-	screen.setFramerateLimit(24);
+	screen.setFramerateLimit(10);
 	// ----------------------------
 
 	// Textures of the pices
@@ -139,15 +238,13 @@ int main(int argc, char** argv) {
 			if (i > 3) color = spi;
 			else color = rash;
 
-			if (i == 1) board[i][j] = piece(sarbaz, color);
-			else if (i == 6) board[i][j] = piece(sarbaz, color);
+			if (i == 1 || i==6) board[i][j] = piece(sarbaz, color);
 			else if (i == 7 || i == 0) {
 				int tp[] = {qala, asp, fil, wazir, pasha, fil, asp, qala};
 				board[i][j] = piece(tp[j], color);
 			} else board[i][j] = piece(batal, rash);
 		}
 	// ----------------------------
-
 
 	// background
 	sf::Texture back_tx;
@@ -169,7 +266,6 @@ int main(int argc, char** argv) {
 			if (events.type == sf::Event::MouseButtonReleased) {
 				if (events.mouseButton.button == sf::Mouse::Left) {
 					move( vec2(events.mouseButton.x/SIZE, events.mouseButton.y/SIZE) );
-
 					should_redraw = true;
 				}
 			}
@@ -178,20 +274,24 @@ int main(int argc, char** argv) {
 
 		// Do thins when we need to update the display
 		if (should_redraw) {
+			screen.clear();
 			screen.draw(background);
 
 			// Drawing the board
 			sf::Sprite s;
+
 			for (int i = 0; i < 8; i++) {
 				for (int j = 0; j < 8; j++) {
-					piece _this = board[i][j];
+					piece _this = *get_board(i, j);
 					if (_this.state != normal) {
+						std::cout << "resetting everything to normal\n";
 						sf::Texture tx;
 						if (_this.state==available) tx.loadFromImage(av_img);
 						if (_this.state==under_attack) tx.loadFromImage(at_img);
 						if (_this.state==this_piece) tx.loadFromImage(th_img);
 						s.setTexture(tx);
 						s.setPosition(j*SIZE, i * SIZE);
+						get_board(i, j)->state = normal;
 						screen.draw(s);
 					}
 					if (_this.type != batal) {
@@ -202,11 +302,10 @@ int main(int argc, char** argv) {
 				}
 			}
 			// ---------------------------
-
 			should_redraw = false;
-			screen.display();
 		}
 		// ----------------------------
+		screen.display();
 	}
 
 	return 0;
