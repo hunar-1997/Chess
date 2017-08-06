@@ -13,6 +13,8 @@ enum Color_of_pice {spi, rash}; // In English {white, black}
 enum Cell_states {normal, this_piece, available, under_attack};
 
 enum cell_type {cell_wrong, cell_empty, cell_our, cell_enemy};
+
+    
 // ----------------------------
 
 // Global variables
@@ -220,6 +222,7 @@ void move(vec2 pos){
 		reset_states();
 	}
 }
+
 
 int linear(int x, int y){
 	int m = SIZE/2;
